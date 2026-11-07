@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
+const db = require('./database');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dayoff-scheduler-secret-key-2024';
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
 
   if (!token) {
@@ -11,9 +12,15 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    const user = await db.queryOne('SELECT id, username, name, role FROM users WHERE id = ?', [decoded.id]);
+    if (!user) {
+      res.clearCookie('token');
+      return res.status(401).json({ error: '사용자 정보가 없습니다. 다시 회원가입하거나 로그인해주세요.' });
+    }
+    req.user = user;
     next();
   } catch (err) {
+    res.clearCookie('token');
     return res.status(401).json({ error: '인증이 만료되었습니다. 다시 로그인해주세요.' });
   }
 }

@@ -15,6 +15,11 @@ async function api(url, options = {}) {
     credentials: 'same-origin',
     ...options,
   });
+  if (res.status === 401 && !url.includes('/login') && !url.includes('/register') && !url.includes('/me')) {
+    currentUser = null;
+    document.getElementById('main-page').style.display = 'none';
+    document.getElementById('auth-page').style.display = 'flex';
+  }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     throw new Error(data?.error || '요청 실패');
