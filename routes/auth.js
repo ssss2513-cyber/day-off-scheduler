@@ -7,7 +7,7 @@ const { authMiddleware, JWT_SECRET } = require('../middleware');
 const router = express.Router();
 
 // 회원가입
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { username, password, name } = req.body;
 
   if (!username || !password || !name) {
@@ -23,7 +23,7 @@ router.post('/register', (req, res) => {
   }
 
   try {
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    const existing = await db.queryOne('SELECT id FROM users WHERE username = ?', [username]);
     if (existing) {
       return res.status(400).json({ error: '이미 존재하는 아이디입니다.' });
     }
@@ -31,12 +31,14 @@ router.post('/register', (req, res) => {
     const hashedPassword = bcrypt.hashSync(password, 10);
 
     // First user becomes admin
-    const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get().count;
+    const countRow = await db.queryOne('SELECT COUNT(*) as count FROM users');
+    const userCount = parseInt(countRow.count, 10) || 0;
     const role = userCount === 0 ? 'admin' : 'member';
 
-    const result = db.prepare(
-      'INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)'
-    ).run(username, hashedPassword, name, role);
+    const result = await db.execute(
+      'INSERT INTO users (username, password, name, role) VALUES (?, ?, ?, ?)',
+      [username, hashedPassword, name, role]
+    );
 
     const token = jwt.sign(
       { id: result.lastInsertRowid, username, name, role },
@@ -55,12 +57,13 @@ router.post('/register', (req, res) => {
       user: { id: result.lastInsertRowid, username, name, role }
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
 
 // 로그인
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
@@ -68,7 +71,7 @@ router.post('/login', (req, res) => {
   }
 
   try {
-    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const user = await db.queryOne('SELECT * FROM users WHERE username = ?', [username]);
     if (!user) {
       return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다.' });
     }
@@ -95,6 +98,7 @@ router.post('/login', (req, res) => {
       user: { id: user.id, username: user.username, name: user.name, role: user.role }
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
@@ -111,11 +115,12 @@ router.get('/me', authMiddleware, (req, res) => {
 });
 
 // 팀원 목록 (인증된 사용자)
-router.get('/members', authMiddleware, (req, res) => {
+router.get('/members', authMiddleware, async (req, res) => {
   try {
-    const members = db.prepare('SELECT id, username, name, role, created_at FROM users ORDER BY name').all();
+    const members = await db.queryAll('SELECT id, username, name, role, created_at FROM users ORDER BY name');
     res.json({ members });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });

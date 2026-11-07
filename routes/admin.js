@@ -6,37 +6,41 @@ const { authMiddleware, adminMiddleware } = require('../middleware');
 const router = express.Router();
 
 // 주차 마감
-router.post('/close-week/:weekId', authMiddleware, adminMiddleware, (req, res) => {
+router.post('/close-week/:weekId', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const week = db.prepare('SELECT * FROM weeks WHERE id = ?').get(req.params.weekId);
+    const week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [req.params.weekId]);
     if (!week) {
       return res.status(404).json({ error: '해당 주차를 찾을 수 없습니다.' });
     }
 
-    db.prepare(
-      'UPDATE weeks SET is_closed = 1, closed_at = CURRENT_TIMESTAMP, closed_by = ? WHERE id = ?'
-    ).run(req.user.id, req.params.weekId);
+    await db.execute(
+      'UPDATE weeks SET is_closed = 1, closed_at = CURRENT_TIMESTAMP, closed_by = ? WHERE id = ?',
+      [req.user.id, req.params.weekId]
+    );
 
     res.json({ message: `${week.year}년 ${week.week_number}주차가 마감되었습니다.` });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
 
 // 주차 마감 해제
-router.post('/open-week/:weekId', authMiddleware, adminMiddleware, (req, res) => {
+router.post('/open-week/:weekId', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const week = db.prepare('SELECT * FROM weeks WHERE id = ?').get(req.params.weekId);
+    const week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [req.params.weekId]);
     if (!week) {
       return res.status(404).json({ error: '해당 주차를 찾을 수 없습니다.' });
     }
 
-    db.prepare(
-      'UPDATE weeks SET is_closed = 0, closed_at = NULL, closed_by = NULL WHERE id = ?'
-    ).run(req.params.weekId);
+    await db.execute(
+      'UPDATE weeks SET is_closed = 0, closed_at = NULL, closed_by = NULL WHERE id = ?',
+      [req.params.weekId]
+    );
 
     res.json({ message: `${week.year}년 ${week.week_number}주차 마감이 해제되었습니다.` });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
@@ -44,19 +48,19 @@ router.post('/open-week/:weekId', authMiddleware, adminMiddleware, (req, res) =>
 // 엑셀 다운로드
 router.get('/export/:weekId', authMiddleware, async (req, res) => {
   try {
-    const week = db.prepare('SELECT * FROM weeks WHERE id = ?').get(req.params.weekId);
+    const week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [req.params.weekId]);
     if (!week) {
       return res.status(404).json({ error: '해당 주차를 찾을 수 없습니다.' });
     }
 
-    const members = db.prepare('SELECT id, name, username FROM users ORDER BY name').all();
-    const dayOffs = db.prepare(`
+    const members = await db.queryAll('SELECT id, name, username FROM users ORDER BY name');
+    const dayOffs = await db.queryAll(`
       SELECT d.*, u.name as user_name, u.username
       FROM day_offs d
       JOIN users u ON d.user_id = u.id
       WHERE d.week_id = ?
       ORDER BY u.name, d.date
-    `).all(req.params.weekId);
+    `, [req.params.weekId]);
 
     // Generate dates for the week (Sun-Sat)
     const dates = [];
@@ -129,7 +133,7 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
 
       dates.forEach((date, colIdx) => {
         const cell = row.getCell(colIdx + 2);
-        const dayOff = dayOffs.find(d => d.user_id === member.id && d.date === date);
+        const dayOff = dayOffs.find(d => Number(d.user_id) === Number(member.id) && d.date === date);
 
         if (dayOff) {
           if (dayOff.is_fixed) {
@@ -142,7 +146,7 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
           }
         } else {
           cell.value = '';
-          if (colIdx >= 5) {
+          if (colIdx === 0 || colIdx === 6) {
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
           }
         }
@@ -182,7 +186,7 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
 
     members.forEach((member, idx) => {
       const row = summarySheet.getRow(idx + 2);
-      const memberDayOffs = dayOffs.filter(d => d.user_id === member.id);
+      const memberDayOffs = dayOffs.filter(d => Number(d.user_id) === Number(member.id));
       const fixedCount = memberDayOffs.filter(d => d.is_fixed).length;
 
       row.getCell(1).value = member.name;
@@ -218,16 +222,17 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
 });
 
 // 사용자 역할 변경 (관리자)
-router.post('/change-role/:userId', authMiddleware, adminMiddleware, (req, res) => {
+router.post('/change-role/:userId', authMiddleware, adminMiddleware, async (req, res) => {
   const { role } = req.body;
   if (!['admin', 'member'].includes(role)) {
     return res.status(400).json({ error: '유효하지 않은 역할입니다.' });
   }
 
   try {
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, req.params.userId);
+    await db.execute('UPDATE users SET role = ? WHERE id = ?', [role, req.params.userId]);
     res.json({ message: '역할이 변경되었습니다.' });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
   }
 });
