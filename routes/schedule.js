@@ -4,26 +4,27 @@ const { authMiddleware } = require('../middleware');
 
 const router = express.Router();
 
-// 해당 날짜가 속한 주차 가져오기 (없으면 생성)
+// 해당 날짜가 속한 주차 가져오기 (일요일 ~ 토요일 기준)
 function getOrCreateWeek(dateStr) {
   const date = new Date(dateStr + 'T00:00:00');
-  const dayOfWeek = date.getDay(); // 0=일, 1=월, ...
-  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const dayOfWeek = date.getDay(); // 0=일, 1=월, 2=화, ..., 6=토
 
-  const monday = new Date(date);
-  monday.setDate(date.getDate() + mondayOffset);
+  // 일요일 시작 (dayOfWeek 만큼 뒤로 가면 해당 주의 일요일)
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - dayOfWeek);
 
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
+  // 토요일 종료 (일요일 + 6일)
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
 
-  const startDate = monday.toISOString().split('T')[0];
-  const endDate = sunday.toISOString().split('T')[0];
+  const startDate = sunday.toISOString().split('T')[0];
+  const endDate = saturday.toISOString().split('T')[0];
 
-  // ISO week number calculation
-  const jan1 = new Date(monday.getFullYear(), 0, 1);
-  const days = Math.floor((monday - jan1) / (24 * 60 * 60 * 1000));
+  // 연도 및 주차 계산 (일요일 기준)
+  const year = sunday.getFullYear();
+  const jan1 = new Date(year, 0, 1);
+  const days = Math.floor((sunday - jan1) / (24 * 60 * 60 * 1000));
   const weekNumber = Math.ceil((days + jan1.getDay() + 1) / 7);
-  const year = monday.getFullYear();
 
   let week = db.prepare('SELECT * FROM weeks WHERE year = ? AND week_number = ?').get(year, weekNumber);
 

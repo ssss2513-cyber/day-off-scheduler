@@ -417,12 +417,36 @@ body {
   cursor: not-allowed;
 }
 
-.day-card.weekend {
-  background: #fafafa;
+.day-card.sunday .day-name,
+.day-card.sunday .day-number {
+  color: var(--danger);
 }
 
-.day-card.weekend .day-name {
+.day-card.saturday .day-name,
+.day-card.saturday .day-number {
+  color: #2980b9;
+}
+
+.day-status.placeholder {
+  color: var(--gray-400);
+  font-size: 11px;
+}
+
+.summary-table th.sunday-header {
+  background: #e74c3c;
+}
+
+.summary-table th.saturday-header {
+  background: #2980b9;
+}
+
+.day-actions .cancel-btn {
   color: var(--danger);
+}
+
+.day-actions .cancel-btn:hover {
+  background: var(--danger-light);
+  border-color: var(--danger);
 }
 
 .day-name {

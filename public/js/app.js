@@ -126,12 +126,11 @@ async function loadMembers() {
   }
 }
 
-// ===== Week Navigation =====
-function getMonday(d) {
+// ===== Week Navigation (일요일 ~ 토요일) =====
+function getSunday(d) {
   const date = new Date(d);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
+  const day = date.getDay(); // 0=일, 1=월, ..., 6=토
+  date.setDate(date.getDate() - day);
   date.setHours(0, 0, 0, 0);
   return date;
 }
@@ -141,11 +140,11 @@ function formatDate(d) {
 }
 
 function getWeekDates(refDate) {
-  const monday = getMonday(refDate);
+  const sunday = getSunday(refDate);
   const dates = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
+    const d = new Date(sunday);
+    d.setDate(sunday.getDate() + i);
     dates.push(d);
   }
   return dates;
@@ -162,8 +161,8 @@ document.getElementById('btn-next-week').addEventListener('click', () => {
 });
 
 async function loadWeekData() {
-  const monday = getMonday(viewDate);
-  const startDate = formatDate(monday);
+  const sunday = getSunday(viewDate);
+  const startDate = formatDate(sunday);
 
   try {
     const data = await api(`/api/schedule/range?startDate=${startDate}`);
@@ -214,10 +213,11 @@ function renderCalendar() {
 
   grid.innerHTML = '';
 
-  weekDates.forEach((date, idx) => {
+  weekDates.forEach((date) => {
     const dateStr = formatDate(date);
-    const dayIdx = date.getDay(); // 0=Sun
-    const isWeekend = dayIdx === 0 || dayIdx === 6;
+    const dayIdx = date.getDay(); // 0=일, ..., 6=토
+    const isSunday = dayIdx === 0;
+    const isSaturday = dayIdx === 6;
 
     // Find my dayoff for this date
     const myDayOff = myDayOffs.find(d => d.date === dateStr);
@@ -226,7 +226,8 @@ function renderCalendar() {
 
     const card = document.createElement('div');
     card.className = 'day-card';
-    if (isWeekend) card.classList.add('weekend');
+    if (isSunday) card.classList.add('sunday');
+    if (isSaturday) card.classList.add('saturday');
     if (isClosed) card.classList.add('disabled');
     if (myDayOff) {
       card.classList.add(myDayOff.is_fixed ? 'fixed' : 'selected');
@@ -237,55 +238,63 @@ function renderCalendar() {
 
     if (myDayOff) {
       if (myDayOff.is_fixed) {
-        statusHTML = `<span class="day-status fix">🔒 픽스</span>`;
+        statusHTML = `<span class="day-status fix" title="${myDayOff.reason || ''}">🔒 픽스 (${myDayOff.reason ? myDayOff.reason.substring(0, 5) : '사유'})</span>`;
       } else {
-        statusHTML = `<span class="day-status off">휴무</span>`;
+        statusHTML = `<span class="day-status off">✓ 휴무 선택됨</span>`;
       }
       if (!isClosed) {
         actionsHTML = `
           <div class="day-actions">
-            ${!myDayOff.is_fixed ? `<button class="fix-btn" data-date="${dateStr}" title="픽스로 변경">📌</button>` : ''}
-            <button data-date="${dateStr}" data-action="remove" title="취소">✕</button>
+            <button type="button" class="fix-btn" data-date="${dateStr}" title="픽스 사유 작성/수정">📌 픽스</button>
+            <button type="button" class="cancel-btn" data-date="${dateStr}" title="선택 취소">✕ 취소</button>
           </div>
         `;
       }
-    } else if (!isClosed) {
-      actionsHTML = `
-        <div class="day-actions">
-          <button data-date="${dateStr}" data-action="add" title="휴무 선택">선택</button>
-        </div>
-      `;
+    } else {
+      statusHTML = `<span class="day-status placeholder">클릭하여 선택</span>`;
+      if (!isClosed) {
+        actionsHTML = `
+          <div class="day-actions">
+            <button type="button" class="fix-btn" data-date="${dateStr}" title="픽스(필수)로 등록">📌 픽스</button>
+          </div>
+        `;
+      }
     }
 
     const countHTML = dateDayOffs.length > 0
-      ? `<span class="day-count">${dateDayOffs.length}명</span>` : '';
+      ? `<span class="day-count">${dateDayOffs.length}명 신청</span>` : '';
 
     card.innerHTML = `
       ${countHTML}
-      <span class="day-name">${DAY_NAMES[dayIdx]}</span>
+      <span class="day-name">${DAY_NAMES[dayIdx]}요일</span>
       <span class="day-number">${date.getDate()}</span>
       <span class="day-month">${date.getMonth() + 1}월</span>
       ${statusHTML}
       ${actionsHTML}
     `;
 
-    // Click handlers
+    // Click handler: 카드 클릭 시 즉시 토글 (복수 날짜도 톡톡 누르면 바로바로 다중 선택)
     if (!isClosed) {
       card.addEventListener('click', (e) => {
-        const target = e.target.closest('button');
-        if (target) {
-          e.stopPropagation();
-          const action = target.dataset.action;
-          const btnDate = target.dataset.date;
+        const fixBtn = e.target.closest('.fix-btn');
+        const cancelBtn = e.target.closest('.cancel-btn');
 
-          if (action === 'add') {
-            addDayOff(btnDate);
-          } else if (action === 'remove') {
-            removeDayOff(btnDate);
-          } else if (target.classList.contains('fix-btn')) {
-            openFixModal(btnDate);
-          }
-        } else if (!myDayOff) {
+        if (fixBtn) {
+          e.stopPropagation();
+          openFixModal(fixBtn.dataset.date);
+          return;
+        }
+
+        if (cancelBtn) {
+          e.stopPropagation();
+          removeDayOff(cancelBtn.dataset.date);
+          return;
+        }
+
+        // 카드 본체 클릭 시: 이미 선택되어 있으면 취소, 없으면 바로 휴무 선택 (토글)
+        if (myDayOff) {
+          removeDayOff(dateStr);
+        } else {
           addDayOff(dateStr);
         }
       });
@@ -382,12 +391,14 @@ function renderSummary() {
   const headerRow = document.getElementById('summary-header');
   const tbody = document.getElementById('summary-body');
 
-  // Header
+  // Header (일요일 ~ 토요일)
   headerRow.innerHTML = '<th>이름</th>';
-  weekDates.forEach((date, idx) => {
+  weekDates.forEach((date) => {
     const dayIdx = date.getDay();
-    const isWeekend = dayIdx === 0 || dayIdx === 6;
-    headerRow.innerHTML += `<th class="${isWeekend ? 'weekend-header' : ''}">${date.getMonth() + 1}/${date.getDate()}<br><small>${DAY_NAMES[dayIdx]}</small></th>`;
+    const isSunday = dayIdx === 0;
+    const isSaturday = dayIdx === 6;
+    const cls = isSunday ? 'sunday-header' : (isSaturday ? 'saturday-header' : '');
+    headerRow.innerHTML += `<th class="${cls}">${date.getMonth() + 1}/${date.getDate()}<br><small>${DAY_NAMES[dayIdx]}</small></th>`;
   });
 
   // Body

@@ -58,7 +58,7 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
       ORDER BY u.name, d.date
     `).all(req.params.weekId);
 
-    // Generate dates for the week (Mon-Sun)
+    // Generate dates for the week (Sun-Sat)
     const dates = [];
     const startDate = new Date(week.start_date + 'T00:00:00');
     for (let i = 0; i < 7; i++) {
@@ -67,7 +67,7 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
       dates.push(d.toISOString().split('T')[0]);
     }
 
-    const dayNames = ['월', '화', '수', '목', '금', '토', '일'];
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
 
     const workbook = new ExcelJS.Workbook();
     workbook.creator = '휴무 취합 시스템';
@@ -107,7 +107,8 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
       const d = new Date(date + 'T00:00:00');
       cell.value = `${d.getMonth() + 1}/${d.getDate()} (${dayNames[idx]})`;
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: idx >= 5 ? 'FFE74C3C' : 'FF4472C4' } };
+      const isWeekend = idx === 0 || idx === 6;
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: isWeekend ? 'FFE74C3C' : 'FF4472C4' } };
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
       cell.border = {
         top: { style: 'thin' }, left: { style: 'thin' },
