@@ -4,21 +4,31 @@ const { authMiddleware } = require('../middleware');
 
 const router = express.Router();
 
+function formatYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseYMD(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // 해당 날짜가 속한 주차 가져오기 (일요일 ~ 토요일 기준)
 async function getOrCreateWeek(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00');
+  const date = parseYMD(dateStr);
   const dayOfWeek = date.getDay(); // 0=일, 1=월, 2=화, ..., 6=토
 
   // 일요일 시작
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() - dayOfWeek);
+  const sunday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - dayOfWeek);
 
   // 토요일 종료
-  const saturday = new Date(sunday);
-  saturday.setDate(sunday.getDate() + 6);
+  const saturday = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + 6);
 
-  const startDate = sunday.toISOString().split('T')[0];
-  const endDate = saturday.toISOString().split('T')[0];
+  const startDate = formatYMD(sunday);
+  const endDate = formatYMD(saturday);
 
   // 연도 및 주차 계산
   const year = sunday.getFullYear();
@@ -29,11 +39,15 @@ async function getOrCreateWeek(dateStr) {
   let week = await db.queryOne('SELECT * FROM weeks WHERE year = ? AND week_number = ?', [year, weekNumber]);
 
   if (!week) {
-    const result = await db.execute(
-      'INSERT INTO weeks (year, week_number, start_date, end_date) VALUES (?, ?, ?, ?)',
-      [year, weekNumber, startDate, endDate]
-    );
-    week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [result.lastInsertRowid]);
+    try {
+      const result = await db.execute(
+        'INSERT INTO weeks (year, week_number, start_date, end_date) VALUES (?, ?, ?, ?)',
+        [year, weekNumber, startDate, endDate]
+      );
+      week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [result.lastInsertRowid]);
+    } catch (e) {
+      week = await db.queryOne('SELECT * FROM weeks WHERE year = ? AND week_number = ?', [year, weekNumber]);
+    }
   }
 
   return week;
@@ -77,7 +91,7 @@ router.get('/week/:weekId', authMiddleware, async (req, res) => {
 router.get('/current', authMiddleware, async (req, res) => {
   try {
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = formatYMD(today);
     const week = await getOrCreateWeek(todayStr);
 
     const dayOffs = await db.queryAll(`

@@ -64,11 +64,13 @@ router.get('/export/:weekId', authMiddleware, async (req, res) => {
 
     // Generate dates for the week (Sun-Sat)
     const dates = [];
-    const startDate = new Date(week.start_date + 'T00:00:00');
+    const [sy, sm, sd] = week.start_date.split('-').map(Number);
     for (let i = 0; i < 7; i++) {
-      const d = new Date(startDate);
-      d.setDate(startDate.getDate() + i);
-      dates.push(d.toISOString().split('T')[0]);
+      const d = new Date(sy, sm - 1, sd + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${day}`);
     }
 
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];

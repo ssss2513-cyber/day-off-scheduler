@@ -133,7 +133,7 @@ async function loadMembers() {
 
 // ===== Week Navigation (일요일 ~ 토요일) =====
 function getSunday(d) {
-  const date = new Date(d);
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const day = date.getDay(); // 0=일, 1=월, ..., 6=토
   date.setDate(date.getDate() - day);
   date.setHours(0, 0, 0, 0);
@@ -141,15 +141,22 @@ function getSunday(d) {
 }
 
 function formatDate(d) {
-  return d.toISOString().split('T')[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function getWeekDates(refDate) {
   const sunday = getSunday(refDate);
   const dates = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(sunday);
-    d.setDate(sunday.getDate() + i);
+    const d = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate() + i);
     dates.push(d);
   }
   return dates;
@@ -338,9 +345,9 @@ let fixTargetDate = null;
 
 function openFixModal(date) {
   fixTargetDate = date;
-  const d = new Date(date + 'T00:00:00');
+  const d = parseDate(date);
   document.getElementById('fix-date-label').textContent =
-    `📅 ${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES[d.getDay()]})`;
+    `📅 ${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES[d.getDay()]}요일)`;
   document.getElementById('fix-reason').value = '';
   document.getElementById('fix-modal').style.display = 'flex';
 }
