@@ -194,16 +194,25 @@ async function loadWeekData() {
 
 function updateWeekUI() {
   const w = currentWeek;
-  document.getElementById('week-title').textContent = `${w.year}년 ${w.week_number}주차`;
-  document.getElementById('week-dates').textContent = `${w.start_date} ~ ${w.end_date}`;
+  const titleEl = document.getElementById('week-title');
+  if (titleEl) {
+    titleEl.textContent = `${w.year}년 ${w.week_number}주차`;
+  }
+
+  const datesEl = document.getElementById('week-dates');
+  if (datesEl) {
+    datesEl.textContent = `${w.year}년 ${w.week_number}주차 (${w.start_date} ~ ${w.end_date})`;
+  }
 
   const statusEl = document.getElementById('week-status');
-  if (w.is_closed) {
-    statusEl.textContent = '🔒 마감됨';
-    statusEl.className = 'badge badge-closed';
-  } else {
-    statusEl.textContent = '📝 진행 중';
-    statusEl.className = 'badge badge-open';
+  if (statusEl) {
+    if (w.is_closed) {
+      statusEl.textContent = '🔒 마감됨';
+      statusEl.className = 'badge badge-closed';
+    } else {
+      statusEl.textContent = '📝 진행 중';
+      statusEl.className = 'badge badge-open';
+    }
   }
 
   // Update admin toggle button
@@ -213,7 +222,7 @@ function updateWeekUI() {
       toggleBtn.innerHTML = '<i class="ri-lock-unlock-line"></i> 마감 해제';
       toggleBtn.className = 'btn btn-sm btn-success';
     } else {
-      toggleBtn.innerHTML = '<i class="ri-lock-line"></i> 마감';
+      toggleBtn.innerHTML = '<i class="ri-lock-line"></i> 이번 주 마감';
       toggleBtn.className = 'btn btn-sm btn-danger';
     }
   }
@@ -404,11 +413,14 @@ document.getElementById('members-modal').addEventListener('click', (e) => {
   }
 });
 
-// ===== Summary Table =====
+// ===== Summary Table (관리자 전용) =====
 function renderSummary() {
+  if (currentUser?.role !== 'admin') return;
+
   const weekDates = getWeekDates(viewDate);
   const headerRow = document.getElementById('summary-header');
   const tbody = document.getElementById('summary-body');
+  if (!headerRow || !tbody) return;
 
   // Header (일요일 ~ 토요일)
   headerRow.innerHTML = '<th>이름</th>';
