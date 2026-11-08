@@ -45,8 +45,8 @@ router.post('/open-week/:weekId', authMiddleware, adminMiddleware, async (req, r
   }
 });
 
-// 엑셀 다운로드
-router.get('/export/:weekId', authMiddleware, async (req, res) => {
+// 엑셀 다운로드 (관리자 전용)
+router.get('/export/:weekId', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const week = await db.queryOne('SELECT * FROM weeks WHERE id = ?', [req.params.weekId]);
     if (!week) {

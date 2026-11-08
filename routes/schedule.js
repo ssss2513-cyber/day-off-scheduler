@@ -94,13 +94,16 @@ router.get('/current', authMiddleware, async (req, res) => {
     const todayStr = formatYMD(today);
     const week = await getOrCreateWeek(todayStr);
 
-    const dayOffs = await db.queryAll(`
-      SELECT d.*, u.name as user_name, u.username
-      FROM day_offs d
-      JOIN users u ON d.user_id = u.id
-      WHERE d.week_id = ?
-      ORDER BY d.date, u.name
-    `, [week.id]);
+    let dayOffs = [];
+    if (req.user.role === 'admin') {
+      dayOffs = await db.queryAll(`
+        SELECT d.*, u.name as user_name, u.username
+        FROM day_offs d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.week_id = ?
+        ORDER BY d.date, u.name
+      `, [week.id]);
+    }
 
     const myDayOffs = await db.queryAll(`
       SELECT * FROM day_offs WHERE user_id = ? AND week_id = ?
@@ -123,13 +126,16 @@ router.get('/range', authMiddleware, async (req, res) => {
 
     const week = await getOrCreateWeek(startDate);
 
-    const dayOffs = await db.queryAll(`
-      SELECT d.*, u.name as user_name, u.username
-      FROM day_offs d
-      JOIN users u ON d.user_id = u.id
-      WHERE d.week_id = ?
-      ORDER BY d.date, u.name
-    `, [week.id]);
+    let dayOffs = [];
+    if (req.user.role === 'admin') {
+      dayOffs = await db.queryAll(`
+        SELECT d.*, u.name as user_name, u.username
+        FROM day_offs d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.week_id = ?
+        ORDER BY d.date, u.name
+      `, [week.id]);
+    }
 
     const myDayOffs = await db.queryAll(`
       SELECT * FROM day_offs WHERE user_id = ? AND week_id = ?

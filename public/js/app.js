@@ -110,14 +110,16 @@ async function showMainPage() {
   document.getElementById('auth-page').style.display = 'none';
   document.getElementById('main-page').style.display = 'block';
 
-  const badge = currentUser.role === 'admin' ? '👑 ' : '';
+  const badge = currentUser.role === 'admin' ? '👑 관리자 ' : '';
   document.getElementById('user-info').textContent = `${badge}${currentUser.name}`;
 
-  // Show admin or member controls
+  // 관리자 전용 메뉴 및 요약표 제어 (일반 팀원은 본인 일정만 확인)
   document.getElementById('admin-controls').style.display = currentUser.role === 'admin' ? 'flex' : 'none';
-  document.getElementById('member-controls').style.display = currentUser.role !== 'admin' ? 'flex' : 'none';
+  document.getElementById('admin-summary-section').style.display = currentUser.role === 'admin' ? 'block' : 'none';
 
-  await loadMembers();
+  if (currentUser.role === 'admin') {
+    await loadMembers();
+  }
   await loadWeekData();
 }
 
@@ -223,6 +225,11 @@ function renderCalendar() {
   const weekDates = getWeekDates(viewDate);
   const isClosed = currentWeek.is_closed;
 
+  const countBadge = document.getElementById('my-count-badge');
+  if (countBadge) {
+    countBadge.textContent = `내 선택: ${myDayOffs.length}일`;
+  }
+
   grid.innerHTML = '';
 
   weekDates.forEach((date) => {
@@ -273,8 +280,8 @@ function renderCalendar() {
       }
     }
 
-    const countHTML = dateDayOffs.length > 0
-      ? `<span class="day-count">${dateDayOffs.length}명 신청</span>` : '';
+    const countHTML = (currentUser.role === 'admin' && dateDayOffs.length > 0)
+      ? `<span class="day-count">${dateDayOffs.length}명</span>` : '';
 
     card.innerHTML = `
       ${countHTML}
@@ -465,8 +472,7 @@ function exportExcel() {
   window.location.href = `/api/admin/export/${currentWeek.id}`;
 }
 
-document.getElementById('btn-export').addEventListener('click', exportExcel);
-document.getElementById('btn-export-member').addEventListener('click', exportExcel);
+document.getElementById('btn-export')?.addEventListener('click', exportExcel);
 
 // ===== Admin: Members Management =====
 document.getElementById('btn-members').addEventListener('click', async () => {
