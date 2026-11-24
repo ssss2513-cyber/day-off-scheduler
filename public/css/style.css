@@ -669,6 +669,9 @@ body {
   border-radius: var(--radius-lg);
   width: 100%;
   max-width: 420px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
   box-shadow: var(--shadow-lg);
   border: 1px solid var(--primary-border);
   animation: modalIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -676,7 +679,7 @@ body {
 }
 
 .modal-wide {
-  max-width: 640px;
+  max-width: 680px;
 }
 
 @keyframes modalIn {
@@ -721,7 +724,57 @@ body {
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.members-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.members-search-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  flex: 1;
+  max-width: 260px;
+}
+
+.members-search-box input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 12px;
+  width: 100%;
+  font-family: inherit;
+}
+
+.members-table th {
+  padding: 10px 12px;
+  background: #faf2f4;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 1px solid var(--gray-200);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.cell-username {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-400);
+  margin-left: 4px;
 }
 
 .modal-body p {

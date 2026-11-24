@@ -436,7 +436,7 @@ function renderSummary() {
   tbody.innerHTML = '';
   members.forEach(member => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="name-cell">${member.name}</td>`;
+    tr.innerHTML = `<td class="name-cell">${member.name} <small class="cell-username">(${member.username})</small></td>`;
 
     weekDates.forEach(date => {
       const dateStr = formatDate(date);
@@ -607,13 +607,23 @@ function exportExcel() {
 
 document.getElementById('btn-export')?.addEventListener('click', exportExcel);
 
-// ===== Admin: Members Management (역할 변경 & 멤버 해제) =====
-document.getElementById('btn-members').addEventListener('click', async () => {
-  await loadMembers();
+// ===== Admin: Members Management (검색, 역할 변경 & 멤버 해제) =====
+function renderMembersList(filterText = '') {
   const list = document.getElementById('members-list');
-  list.innerHTML = '';
+  const countBadge = document.getElementById('members-count-badge');
+  if (!list) return;
 
-  members.forEach(member => {
+  list.innerHTML = '';
+  const q = filterText.toLowerCase().trim();
+  const filtered = members.filter(m => 
+    !q || m.name.toLowerCase().includes(q) || m.username.toLowerCase().includes(q)
+  );
+
+  if (countBadge) {
+    countBadge.textContent = q ? `검색: ${filtered.length}명 / 총 ${members.length}명` : `총 ${members.length}명`;
+  }
+
+  filtered.forEach(member => {
     const tr = document.createElement('tr');
     const roleClass = member.role === 'admin' ? 'role-admin' : 'role-member';
     const roleText = member.role === 'admin' ? '관리자' : '멤버';
@@ -631,7 +641,7 @@ document.getElementById('btn-members').addEventListener('click', async () => {
               <option value="member" ${member.role === 'member' ? 'selected' : ''}>멤버</option>
               <option value="admin" ${member.role === 'admin' ? 'selected' : ''}>관리자</option>
             </select>
-            <button type="button" class="btn-remove-member" data-user-id="${member.id}" data-user-name="${member.name}">
+            <button type="button" class="btn-remove-member" data-user-id="${member.id}" data-user-name="${member.name}" title="팀원에서 해제">
               <i class="ri-user-unfollow-line"></i> 해제
             </button>
           </div>
@@ -649,6 +659,7 @@ document.getElementById('btn-members').addEventListener('click', async () => {
           });
           showToast('역할이 변경되었습니다.', 'success');
           await loadMembers();
+          renderMembersList(document.getElementById('member-search-input')?.value || '');
         } catch (err) {
           showToast(err.message, 'error');
           e.target.value = member.role;
@@ -659,7 +670,7 @@ document.getElementById('btn-members').addEventListener('click', async () => {
     const removeBtn = tr.querySelector('.btn-remove-member');
     if (removeBtn) {
       removeBtn.addEventListener('click', async () => {
-        const confirmMsg = `정말 "${member.name}" 님을 멤버에서 해제(삭제)하시겠습니까?\n등록된 모든 휴무 일정 데이터도 함께 삭제됩니다.`;
+        const confirmMsg = `정말 "${member.name} (${member.username})" 님을 멤버에서 해제(삭제)하시겠습니까?\n등록된 모든 휴무 일정 데이터도 함께 삭제됩니다.`;
         if (!confirm(confirmMsg)) return;
 
         try {
@@ -667,8 +678,7 @@ document.getElementById('btn-members').addEventListener('click', async () => {
           showToast(res.message, 'success');
           await loadMembers();
           await loadWeekData();
-          // 팀원 관리 모달 다시 렌더링
-          document.getElementById('btn-members').click();
+          renderMembersList(document.getElementById('member-search-input')?.value || '');
         } catch (err) {
           showToast(err.message, 'error');
         }
@@ -677,8 +687,18 @@ document.getElementById('btn-members').addEventListener('click', async () => {
 
     list.appendChild(tr);
   });
+}
 
+document.getElementById('btn-members').addEventListener('click', async () => {
+  await loadMembers();
+  const searchInput = document.getElementById('member-search-input');
+  if (searchInput) searchInput.value = '';
+  renderMembersList();
   document.getElementById('members-modal').style.display = 'flex';
+});
+
+document.getElementById('member-search-input')?.addEventListener('input', (e) => {
+  renderMembersList(e.target.value);
 });
 
 document.getElementById('members-modal-close').addEventListener('click', () => {
