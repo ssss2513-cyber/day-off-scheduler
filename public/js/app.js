@@ -413,7 +413,7 @@ document.getElementById('members-modal').addEventListener('click', (e) => {
   }
 });
 
-// ===== Summary Table (관리자 전용) =====
+// ===== Summary Table (관리자 전용 & 휴무 직접 수정 가능) =====
 function renderSummary() {
   if (currentUser?.role !== 'admin') return;
 
@@ -440,22 +440,143 @@ function renderSummary() {
 
     weekDates.forEach(date => {
       const dateStr = formatDate(date);
-      const dayOff = allDayOffs.find(d => d.user_id === member.id && d.date === dateStr);
+      const dayOff = allDayOffs.find(d => Number(d.user_id) === Number(member.id) && d.date === dateStr);
+
+      let cellContent = '-';
+      let cellClass = 'summary-cell-editable';
 
       if (dayOff) {
         if (dayOff.is_fixed) {
-          tr.innerHTML += `<td class="cell-fix" title="${dayOff.reason || ''}">🔒 ${dayOff.reason ? dayOff.reason.substring(0, 6) : '픽스'}</td>`;
+          cellContent = `<span class="cell-fix" title="${dayOff.reason || ''}">🔒 ${dayOff.reason ? dayOff.reason.substring(0, 6) : '픽스'}</span>`;
         } else {
-          tr.innerHTML += `<td class="cell-off">휴무</td>`;
+          cellContent = `<span class="cell-off">휴무</span>`;
         }
-      } else {
-        tr.innerHTML += `<td>-</td>`;
       }
+
+      const td = document.createElement('td');
+      td.className = cellClass;
+      td.dataset.userId = member.id;
+      td.dataset.userName = member.name;
+      td.dataset.date = dateStr;
+      td.title = `클릭하여 ${member.name} 님의 휴무 수정`;
+      td.innerHTML = cellContent;
+
+      td.addEventListener('click', () => {
+        openAdminDayOffModal(member.id, member.name, dateStr);
+      });
+
+      tr.appendChild(td);
     });
 
     tbody.appendChild(tr);
   });
 }
+
+// ===== Admin Day-off Edit Modal =====
+let adminTargetUser = null;
+let adminTargetDate = null;
+
+function openAdminDayOffModal(userId, userName, dateStr) {
+  adminTargetUser = { id: userId, name: userName };
+  adminTargetDate = dateStr;
+
+  const d = parseDate(dateStr);
+  document.getElementById('admin-dayoff-info').textContent = `👤 ${userName} 님의 휴무 상태 변경`;
+  document.getElementById('admin-dayoff-date').textContent =
+    `📅 ${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DAY_NAMES[d.getDay()]}요일)`;
+
+  const existing = allDayOffs.find(d => Number(d.user_id) === Number(userId) && d.date === dateStr);
+  const reasonGroup = document.getElementById('admin-fixed-reason-group');
+  const reasonInput = document.getElementById('admin-fixed-reason');
+
+  if (existing) {
+    if (existing.is_fixed) {
+      document.querySelector('input[name="admin-dayoff-type"][value="fixed"]').checked = true;
+      reasonGroup.style.display = 'block';
+      reasonInput.value = existing.reason || '';
+    } else {
+      document.querySelector('input[name="admin-dayoff-type"][value="off"]').checked = true;
+      reasonGroup.style.display = 'none';
+      reasonInput.value = '';
+    }
+  } else {
+    document.querySelector('input[name="admin-dayoff-type"][value="work"]').checked = true;
+    reasonGroup.style.display = 'none';
+    reasonInput.value = '';
+  }
+
+  document.getElementById('admin-dayoff-modal').style.display = 'flex';
+}
+
+document.querySelectorAll('input[name="admin-dayoff-type"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const isFixed = e.target.value === 'fixed';
+    const reasonGroup = document.getElementById('admin-fixed-reason-group');
+    if (reasonGroup) {
+      reasonGroup.style.display = isFixed ? 'block' : 'none';
+    }
+  });
+});
+
+document.getElementById('btn-admin-dayoff-save')?.addEventListener('click', async () => {
+  if (!adminTargetUser || !adminTargetDate) return;
+
+  const selectedType = document.querySelector('input[name="admin-dayoff-type"]:checked')?.value;
+  const reason = document.getElementById('admin-fixed-reason').value.trim();
+
+  try {
+    if (selectedType === 'work') {
+      await api(`/api/admin/dayoff/${adminTargetUser.id}/${adminTargetDate}`, {
+        method: 'DELETE',
+      });
+      showToast(`${adminTargetUser.name} 님의 휴무가 취소(근무)되었습니다.`, 'success');
+    } else if (selectedType === 'off') {
+      await api('/api/admin/dayoff', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: adminTargetUser.id,
+          date: adminTargetDate,
+          is_fixed: false,
+        }),
+      });
+      showToast(`${adminTargetUser.name} 님의 일반 휴무가 저장되었습니다.`, 'success');
+    } else if (selectedType === 'fixed') {
+      if (!reason) {
+        showToast('픽스 사유를 입력해주세요.', 'error');
+        return;
+      }
+      await api('/api/admin/dayoff', {
+        method: 'POST',
+        body: JSON.stringify({
+          userId: adminTargetUser.id,
+          date: adminTargetDate,
+          is_fixed: true,
+          reason,
+        }),
+      });
+      showToast(`${adminTargetUser.name} 님의 픽스 휴무가 설정되었습니다.`, 'success');
+    }
+
+    document.getElementById('admin-dayoff-modal').style.display = 'none';
+    await loadWeekData();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+});
+
+document.getElementById('admin-dayoff-modal-close')?.addEventListener('click', () => {
+  document.getElementById('admin-dayoff-modal').style.display = 'none';
+});
+
+document.getElementById('btn-admin-dayoff-cancel')?.addEventListener('click', () => {
+  document.getElementById('admin-dayoff-modal').style.display = 'none';
+});
+
+document.getElementById('admin-dayoff-modal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    document.getElementById('admin-dayoff-modal').style.display = 'none';
+  }
+});
 
 // ===== Admin: Toggle Week =====
 document.getElementById('btn-toggle-week').addEventListener('click', async () => {
@@ -486,7 +607,7 @@ function exportExcel() {
 
 document.getElementById('btn-export')?.addEventListener('click', exportExcel);
 
-// ===== Admin: Members Management =====
+// ===== Admin: Members Management (역할 변경 & 멤버 해제) =====
 document.getElementById('btn-members').addEventListener('click', async () => {
   await loadMembers();
   const list = document.getElementById('members-list');
@@ -504,11 +625,16 @@ document.getElementById('btn-members').addEventListener('click', async () => {
       <td><span class="role-badge ${roleClass}">${roleText}</span></td>
       <td>${createdAt}</td>
       <td>
-        ${member.id !== currentUser.id ? `
-          <select class="role-select" data-user-id="${member.id}" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;font-size:12px;font-family:inherit;">
-            <option value="member" ${member.role === 'member' ? 'selected' : ''}>멤버</option>
-            <option value="admin" ${member.role === 'admin' ? 'selected' : ''}>관리자</option>
-          </select>
+        ${Number(member.id) !== Number(currentUser.id) ? `
+          <div style="display:inline-flex;align-items:center;gap:6px;">
+            <select class="role-select" data-user-id="${member.id}" style="padding:4px 8px;border-radius:4px;border:1px solid #ddd;font-size:12px;font-family:inherit;">
+              <option value="member" ${member.role === 'member' ? 'selected' : ''}>멤버</option>
+              <option value="admin" ${member.role === 'admin' ? 'selected' : ''}>관리자</option>
+            </select>
+            <button type="button" class="btn-remove-member" data-user-id="${member.id}" data-user-name="${member.name}">
+              <i class="ri-user-unfollow-line"></i> 해제
+            </button>
+          </div>
         ` : '<span style="color:#999;font-size:12px;">본인</span>'}
       </td>
     `;
@@ -526,6 +652,25 @@ document.getElementById('btn-members').addEventListener('click', async () => {
         } catch (err) {
           showToast(err.message, 'error');
           e.target.value = member.role;
+        }
+      });
+    }
+
+    const removeBtn = tr.querySelector('.btn-remove-member');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', async () => {
+        const confirmMsg = `정말 "${member.name}" 님을 멤버에서 해제(삭제)하시겠습니까?\n등록된 모든 휴무 일정 데이터도 함께 삭제됩니다.`;
+        if (!confirm(confirmMsg)) return;
+
+        try {
+          const res = await api(`/api/admin/members/${member.id}`, { method: 'DELETE' });
+          showToast(res.message, 'success');
+          await loadMembers();
+          await loadWeekData();
+          // 팀원 관리 모달 다시 렌더링
+          document.getElementById('btn-members').click();
+        } catch (err) {
+          showToast(err.message, 'error');
         }
       });
     }

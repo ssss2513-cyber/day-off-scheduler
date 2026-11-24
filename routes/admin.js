@@ -2,6 +2,7 @@ const express = require('express');
 const ExcelJS = require('exceljs');
 const db = require('../database');
 const { authMiddleware, adminMiddleware } = require('../middleware');
+const { getOrCreateWeek } = require('./weekHelper');
 
 const router = express.Router();
 
@@ -236,6 +237,82 @@ router.post('/change-role/:userId', authMiddleware, adminMiddleware, async (req,
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 팀원(멤버) 해제/삭제 (관리자 전용)
+router.delete('/members/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const targetId = Number(req.params.userId);
+    if (targetId === Number(req.user.id)) {
+      return res.status(400).json({ error: '본인 계정은 해제할 수 없습니다.' });
+    }
+
+    const targetUser = await db.queryOne('SELECT * FROM users WHERE id = ?', [targetId]);
+    if (!targetUser) {
+      return res.status(404).json({ error: '해당 팀원을 찾을 수 없습니다.' });
+    }
+
+    // 외래 키 제약 조건 방지를 위해 연관 데이터 정리
+    await db.execute('DELETE FROM day_offs WHERE user_id = ?', [targetId]);
+    await db.execute('UPDATE weeks SET closed_by = NULL WHERE closed_by = ?', [targetId]);
+    await db.execute('DELETE FROM users WHERE id = ?', [targetId]);
+
+    res.json({ message: `${targetUser.name} 님이 팀원에서 해제(삭제)되었습니다.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '팀원 해제 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+// 관리자 권한으로 특정 팀원의 휴무 등록/수정
+router.post('/dayoff', authMiddleware, adminMiddleware, async (req, res) => {
+  const { userId, date, is_fixed, reason } = req.body;
+  if (!userId || !date) {
+    return res.status(400).json({ error: '팀원과 날짜 정보가 필요합니다.' });
+  }
+
+  try {
+    const targetUser = await db.queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    if (!targetUser) {
+      return res.status(404).json({ error: '해당 팀원을 찾을 수 없습니다.' });
+    }
+
+    const week = await getOrCreateWeek(date);
+    const existing = await db.queryOne(
+      'SELECT * FROM day_offs WHERE user_id = ? AND date = ?',
+      [userId, date]
+    );
+
+    if (existing) {
+      await db.execute(
+        'UPDATE day_offs SET is_fixed = ?, reason = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [is_fixed ? 1 : 0, reason || null, existing.id]
+      );
+    } else {
+      await db.execute(
+        'INSERT INTO day_offs (user_id, date, week_id, is_fixed, reason) VALUES (?, ?, ?, ?, ?)',
+        [userId, date, week.id, is_fixed ? 1 : 0, reason || null]
+      );
+    }
+
+    res.json({ message: `${targetUser.name} 님의 휴무가 수정되었습니다.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '휴무 수정 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+// 관리자 권한으로 특정 팀원의 휴무 취소/삭제 (근무일로 복원)
+router.delete('/dayoff/:userId/:date', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { userId, date } = req.params;
+    const targetUser = await db.queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+    await db.execute('DELETE FROM day_offs WHERE user_id = ? AND date = ?', [userId, date]);
+    res.json({ message: `${targetUser ? targetUser.name + ' 님의 ' : ''}휴무가 취소되었습니다.` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '휴무 취소 중 서버 오류가 발생했습니다.' });
   }
 });
 
