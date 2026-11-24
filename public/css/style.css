@@ -988,3 +988,228 @@ body {
   margin: 0;
 }
 
+/* ===== Consecutive Day-off Alerts (3일 이상 연속 휴무) ===== */
+.btn-consecutive {
+  background: #fff1f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  transition: var(--transition);
+}
+
+.btn-consecutive:hover {
+  background: #ffe4e6;
+  border-color: #fb7185;
+}
+
+.consecutive-pill {
+  background: #e11d48;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 10px;
+  line-height: 1.2;
+}
+
+.consecutive-banner {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  border: 1px solid #fecdd3;
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 10px rgba(225, 29, 72, 0.06);
+  animation: modalIn 0.25s ease-out;
+}
+
+.consecutive-banner-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.consecutive-banner-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #9f1239;
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: #e11d48;
+  border-radius: 50%;
+  box-shadow: 0 0 0 rgba(225, 29, 72, 0.4);
+  animation: pulseDot 1.5s infinite;
+}
+
+@keyframes pulseDot {
+  0% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.6); }
+  70% { box-shadow: 0 0 0 6px rgba(225, 29, 72, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0); }
+}
+
+.consecutive-banner-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.consecutive-mini-chip {
+  background: white;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+}
+
+.consecutive-mini-chip:hover {
+  background: #fff5f7;
+  border-color: #f43f5e;
+  transform: translateY(-1px);
+}
+
+.consecutive-mini-chip .chip-name {
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.consecutive-mini-chip .chip-streak {
+  background: #fecdd3;
+  color: #9f1239;
+  font-weight: 800;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.consecutive-mini-chip .chip-dates {
+  color: var(--gray-500);
+  font-size: 11px;
+}
+
+/* Consecutive Modal Styles */
+.consecutive-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.consecutive-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.consecutive-card {
+  background: white;
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  transition: var(--transition);
+}
+
+.consecutive-card:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--primary);
+}
+
+.consecutive-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.consecutive-card-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.consecutive-card-user .user-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--gray-900);
+}
+
+.consecutive-card-user .user-id {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.streak-pill-lg {
+  background: #ffe4e6;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.consecutive-dates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.consecutive-date-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.consecutive-date-item:hover {
+  background: #fff1f2;
+  border-color: #fecdd3;
+}
+
+.consecutive-date-item.is-fixed {
+  background: #fff5f7;
+  border-color: #fecdd3;
+}
+
+.consecutive-date-item .item-date {
+  font-weight: 700;
+  color: var(--gray-800);
+  margin-bottom: 2px;
+}
+
+.consecutive-date-item .item-status {
+  font-size: 11px;
+  color: var(--primary);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+

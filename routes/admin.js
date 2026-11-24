@@ -316,4 +316,82 @@ router.delete('/dayoff/:userId/:date', authMiddleware, adminMiddleware, async (r
   }
 });
 
+// 3일 이상 연속 휴무 알림 목록 조회 (관리자 전용)
+router.get('/consecutive-alerts', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const dayOffs = await db.queryAll(`
+      SELECT d.*, u.name as user_name, u.username
+      FROM day_offs d
+      JOIN users u ON d.user_id = u.id
+      ORDER BY d.user_id, d.date ASC
+    `);
+
+    // Group by user_id
+    const userMap = {};
+    dayOffs.forEach(d => {
+      if (!userMap[d.user_id]) userMap[d.user_id] = [];
+      userMap[d.user_id].push(d);
+    });
+
+    const alerts = [];
+    for (const [userId, list] of Object.entries(userMap)) {
+      let currentStreak = [];
+      for (let i = 0; i < list.length; i++) {
+        const cur = list[i];
+        if (currentStreak.length === 0) {
+          currentStreak.push(cur);
+        } else {
+          const last = currentStreak[currentStreak.length - 1];
+          const [ly, lm, ld] = last.date.split('-').map(Number);
+          const [cy, cm, cd] = cur.date.split('-').map(Number);
+          const lastDate = new Date(ly, lm - 1, ld);
+          const curDate = new Date(cy, cm - 1, cd);
+          const diffDays = Math.round((curDate - lastDate) / (1000 * 60 * 60 * 24));
+          if (diffDays === 1) {
+            currentStreak.push(cur);
+          } else if (diffDays > 1) {
+            if (currentStreak.length >= 3) {
+              alerts.push(formatStreak(currentStreak));
+            }
+            currentStreak = [cur];
+          }
+        }
+      }
+      if (currentStreak.length >= 3) {
+        alerts.push(formatStreak(currentStreak));
+      }
+    }
+
+    alerts.sort((a, b) => a.startDate.localeCompare(b.startDate));
+    res.json({ alerts });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '연속 휴무 조회 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+function formatStreak(streak) {
+  const first = streak[0];
+  const last = streak[streak.length - 1];
+  const hasFixed = streak.some(d => d.is_fixed);
+  const reasons = [...new Set(streak.map(d => d.reason).filter(Boolean))];
+  return {
+    userId: first.user_id,
+    userName: first.user_name,
+    username: first.username,
+    streakDays: streak.length,
+    startDate: first.date,
+    endDate: last.date,
+    dates: streak.map(d => d.date),
+    hasFixed,
+    reasons,
+    details: streak.map(d => ({
+      id: d.id,
+      date: d.date,
+      is_fixed: d.is_fixed,
+      reason: d.reason
+    }))
+  };
+}
+
 module.exports = router;

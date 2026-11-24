@@ -4,6 +4,7 @@ let currentWeek = null;
 let allDayOffs = [];
 let myDayOffs = [];
 let members = [];
+let consecutiveAlerts = [];
 let viewDate = new Date(); // Current viewing week reference date
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -187,6 +188,9 @@ async function loadWeekData() {
     updateWeekUI();
     renderCalendar();
     renderSummary();
+    if (currentUser?.role === 'admin') {
+      await loadConsecutiveAlerts();
+    }
   } catch (err) {
     showToast(err.message, 'error');
   }
@@ -703,6 +707,144 @@ document.getElementById('member-search-input')?.addEventListener('input', (e) =>
 
 document.getElementById('members-modal-close').addEventListener('click', () => {
   document.getElementById('members-modal').style.display = 'none';
+});
+
+// ===== Admin: Consecutive Day-Off Alerts (3일 이상 연속 휴무 감지 & 확인) =====
+async function loadConsecutiveAlerts() {
+  if (currentUser?.role !== 'admin') return;
+
+  try {
+    const data = await api('/api/admin/consecutive-alerts');
+    consecutiveAlerts = data.alerts || [];
+
+    // 1. 관리자 메뉴 상단 뱃지 카운트 업데이트
+    const pill = document.getElementById('consecutive-count-pill');
+    if (pill) {
+      pill.textContent = consecutiveAlerts.length;
+      pill.style.display = consecutiveAlerts.length > 0 ? 'inline-block' : 'none';
+    }
+
+    // 2. 현황표 상단 배너 알림 업데이트
+    const banner = document.getElementById('consecutive-alert-banner');
+    const bannerCount = document.getElementById('consecutive-banner-count');
+    const bannerList = document.getElementById('consecutive-banner-list');
+
+    if (banner && bannerList) {
+      if (consecutiveAlerts.length > 0) {
+        banner.style.display = 'block';
+        if (bannerCount) bannerCount.textContent = consecutiveAlerts.length;
+        bannerList.innerHTML = '';
+
+        consecutiveAlerts.forEach(alert => {
+          const chip = document.createElement('div');
+          chip.className = 'consecutive-mini-chip';
+          const reasonStr = alert.reasons.length > 0 ? ` [${alert.reasons.join(', ')}]` : '';
+          chip.innerHTML = `
+            <span class="chip-name">👤 ${alert.userName}</span>
+            <span class="chip-streak">${alert.streakDays}일 연속</span>
+            <span class="chip-dates">${alert.startDate.substring(5)} ~ ${alert.endDate.substring(5)}${reasonStr}</span>
+          `;
+          chip.addEventListener('click', () => {
+            openConsecutiveModal();
+          });
+          bannerList.appendChild(chip);
+        });
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load consecutive alerts:', err);
+  }
+}
+
+function openConsecutiveModal() {
+  const modal = document.getElementById('consecutive-modal');
+  const countBadge = document.getElementById('consecutive-modal-count');
+  const container = document.getElementById('consecutive-modal-list');
+  if (!modal || !container) return;
+
+  if (countBadge) {
+    countBadge.textContent = `총 ${consecutiveAlerts.length}건의 3일 이상 연속 휴무`;
+  }
+
+  container.innerHTML = '';
+
+  if (consecutiveAlerts.length === 0) {
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:var(--gray-400);">
+        <i class="ri-checkbox-circle-line" style="font-size:36px;color:var(--success);margin-bottom:8px;display:inline-block;"></i>
+        <p style="font-size:14px;font-weight:700;">현재 3일 이상 연속으로 휴무를 신청한 팀원이 없습니다.</p>
+      </div>
+    `;
+  } else {
+    consecutiveAlerts.forEach(alert => {
+      const card = document.createElement('div');
+      card.className = 'consecutive-card';
+
+      const reasonsBadge = alert.reasons.length > 0 
+        ? `<div style="font-size:12px;color:#9f1239;font-weight:700;margin-bottom:10px;background:#fff1f2;padding:6px 12px;border-radius:6px;border:1px solid #fecdd3;">📌 픽스 사유: ${alert.reasons.join(', ')}</div>` : '';
+
+      const gridId = `streak-grid-${alert.userId}-${alert.startDate.replace(/-/g, '')}`;
+
+      card.innerHTML = `
+        <div class="consecutive-card-top">
+          <div class="consecutive-card-user">
+            <span class="user-name">👤 ${alert.userName}</span>
+            <span class="user-id">(${alert.username})</span>
+          </div>
+          <span class="streak-pill-lg">🔥 ${alert.streakDays}일 연속 휴무 (${alert.startDate} ~ ${alert.endDate})</span>
+        </div>
+        ${reasonsBadge}
+        <div class="consecutive-dates-grid" id="${gridId}">
+          <!-- date chips -->
+        </div>
+      `;
+
+      const datesGrid = card.querySelector(`#${gridId}`);
+      alert.details.forEach(d => {
+        const item = document.createElement('div');
+        item.className = 'consecutive-date-item' + (d.is_fixed ? ' is-fixed' : '');
+        const dateObj = parseDate(d.date);
+        const dayName = DAY_NAMES[dateObj.getDay()];
+        const statusText = d.is_fixed ? `🔒 ${d.reason || '픽스'}` : '🌿 일반 휴무';
+
+        item.innerHTML = `
+          <div class="item-date">${d.date.substring(5)} (${dayName})</div>
+          <div class="item-status" title="${d.reason || ''}">${statusText}</div>
+        `;
+
+        item.addEventListener('click', () => {
+          modal.style.display = 'none';
+          openAdminDayOffModal(alert.userId, alert.userName, d.date);
+        });
+
+        datesGrid.appendChild(item);
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  modal.style.display = 'flex';
+}
+
+document.getElementById('btn-consecutive-alerts')?.addEventListener('click', () => {
+  openConsecutiveModal();
+});
+
+document.getElementById('btn-open-consecutive-modal')?.addEventListener('click', () => {
+  openConsecutiveModal();
+});
+
+document.getElementById('consecutive-modal-close')?.addEventListener('click', () => {
+  document.getElementById('consecutive-modal').style.display = 'none';
+});
+
+document.getElementById('consecutive-modal')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    document.getElementById('consecutive-modal').style.display = 'none';
+  }
 });
 
 // ===== Start =====
