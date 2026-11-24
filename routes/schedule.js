@@ -39,6 +39,50 @@ router.get('/week/:weekId', authMiddleware, async (req, res) => {
   }
 });
 
+// 현재 진행 중인(마감되지 않은) 주차 기준으로 데이터 가져오기 (첫 페이지용)
+router.get('/active', authMiddleware, async (req, res) => {
+  try {
+    const today = new Date();
+    const todayStr = formatYMD(today);
+    const thisWeek = await getOrCreateWeek(todayStr);
+
+    let activeWeek = null;
+    if (!thisWeek.is_closed) {
+      activeWeek = thisWeek;
+    } else {
+      activeWeek = await db.queryOne(
+        'SELECT * FROM weeks WHERE is_closed = 0 AND start_date >= ? ORDER BY start_date ASC LIMIT 1',
+        [thisWeek.start_date]
+      );
+      if (!activeWeek) {
+        activeWeek = await db.queryOne(
+          'SELECT * FROM weeks WHERE is_closed = 0 ORDER BY start_date DESC LIMIT 1'
+        ) || thisWeek;
+      }
+    }
+
+    let dayOffs = [];
+    if (req.user.role === 'admin') {
+      dayOffs = await db.queryAll(`
+        SELECT d.*, u.name as user_name, u.username
+        FROM day_offs d
+        JOIN users u ON d.user_id = u.id
+        WHERE d.week_id = ?
+        ORDER BY d.date, u.name
+      `, [activeWeek.id]);
+    }
+
+    const myDayOffs = await db.queryAll(`
+      SELECT * FROM day_offs WHERE user_id = ? AND week_id = ?
+    `, [req.user.id, activeWeek.id]);
+
+    res.json({ week: activeWeek, dayOffs, myDayOffs });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // 현재 주차 기준으로 데이터 가져오기
 router.get('/current', authMiddleware, async (req, res) => {
   try {

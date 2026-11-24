@@ -121,7 +121,8 @@ async function showMainPage() {
   if (currentUser.role === 'admin') {
     await loadMembers();
   }
-  await loadWeekData();
+  // 첫 페이지 진입 시: 마감된 주차가 아닌 '진행 중'인 최신 주차를 실시간으로 먼저 로드
+  await loadInitialActiveWeek();
 }
 
 // ===== Members =====
@@ -174,6 +175,33 @@ document.getElementById('btn-next-week').addEventListener('click', () => {
   viewDate.setDate(viewDate.getDate() + 7);
   loadWeekData();
 });
+
+document.getElementById('btn-active-week')?.addEventListener('click', () => {
+  loadInitialActiveWeek();
+});
+
+// 첫 페이지 접속 시 마감되지 않고 진행 중인 가장 빠른 주차 자동 로드
+async function loadInitialActiveWeek() {
+  try {
+    const data = await api('/api/schedule/active');
+    currentWeek = data.week;
+    allDayOffs = data.dayOffs || [];
+    myDayOffs = data.myDayOffs || [];
+
+    if (currentWeek?.start_date) {
+      viewDate = parseDate(currentWeek.start_date);
+    }
+
+    updateWeekUI();
+    renderCalendar();
+    renderSummary();
+    if (currentUser?.role === 'admin') {
+      await loadConsecutiveAlerts();
+    }
+  } catch (err) {
+    await loadWeekData();
+  }
+}
 
 async function loadWeekData() {
   const sunday = getSunday(viewDate);
